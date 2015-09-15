@@ -1,0 +1,64 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    prog=`basename "$0"`
+    printf >&2 "Usage: %s [--no-submodule] PKGNAME [DIRECTORY]\n" "$prog"
+    exit 2
+}
+
+setarg() {
+    if [ -z "${name+x}" ]
+    then name=$arg
+    elif [ -z "${dest+x}" ]
+    then dest=$arg
+    else usage
+    fi
+}
+
+# parse args
+for arg
+do
+    if [ "${optend-}" ]
+    then
+        setarg
+        continue
+    fi
+    case $arg in
+        --) optend=t;;
+        -n|--no-submodule) nosubmodule=t;;
+        -*) usage;;
+        *) setarg;;
+    esac
+done
+
+# check args and set defaults
+if [ -z "${name+x}" ]
+then usage
+fi
+nosubmodule=${nosubmodule-}
+dest=${dest-$name}
+
+# clone
+if [ "$nosubmodule" ]
+then
+    set -- git clone
+else
+    set -- git submodule add
+fi
+"$@" -- "aur@aur.archlinux.org:$name" "$dest"
+cd "$dest"
+gitdir=`git rev-parse --git-dir`
+
+# add hook
+cat >"$gitdir/hooks/pre-commit" <<EOF
+#!/bin/sh
+set -e
+namcap PKGBUILD
+mksrcinfo
+git add .SRCINFO
+EOF
+chmod 755 "$gitdir/hooks/pre-commit"
+
+# set user info
+git-config-user-aur

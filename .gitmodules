@@ -1,0 +1,6 @@
+[submodule "gitit"]
+	path = gitit
+	url = aur@aur.archlinux.org:gitit
+[submodule "lpp"]
+	path = lpp
+	url = aur@aur.archlinux.org:lpp
