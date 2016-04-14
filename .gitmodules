@@ -4,3 +4,12 @@
 [submodule "lpp"]
 	path = lpp
 	url = aur@aur.archlinux.org:lpp
+[submodule "fresco"]
+	path = fresco
+	url = aur@aur.archlinux.org:fresco
+[submodule "slatec"]
+	path = slatec
+	url = aur@aur.archlinux.org:slatec
+[submodule "slatec-git"]
+	path = slatec-git
+	url = aur@aur.archlinux.org:slatec-git
