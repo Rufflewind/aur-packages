@@ -16,3 +16,6 @@
 [submodule "ttf-oxygen-gf"]
 	path = ttf-oxygen-gf
 	url = aur@aur.archlinux.org:ttf-oxygen-gf
+[submodule "ttf-share-gf"]
+	path = ttf-share-gf
+	url = aur@aur.archlinux.org:ttf-share-gf
