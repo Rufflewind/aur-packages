@@ -23,8 +23,11 @@ Run this to clone new or existing packages:
 pkgname=<pkgname>
 
 git clone "aur@aur.archlinux.org:${pkgname}" &&
-cp -p pre-commit `git rev-parse --git-dir`/hooks/pre-commit &&
-GIT_DIR="${pkgname}" git-config-user-aur
+(
+    cd "${pkgname}" &&
+    cp -p ../pre-commit "`git rev-parse --git-dir`/hooks/pre-commit" &&
+    git-config-user-aur
+)
 ~~~
 
 Then add it as a submodule of `aur-packages`:
