@@ -1,0 +1,463 @@
+#!/usr/bin/env python3
+import argparse, configparser, glob, os, re, shutil, subprocess, sys
+
+DESCRIPTION = """
+The tool can be used to automatically generate PKGBUILD packages for specific
+fonts in the Google Fonts repository.
+
+The package information derived comes from the manifest database, which is a
+text file written in Python's ConfigParser format with support for
+ExtendedInterpolation.  Here's an example of what it could contain:
+
+    [DEFAULT]
+    maintainer=John Smith <johnsmith@example.com>
+    conflicts=ttf-google-fonts-git
+
+    [oxygen]
+    fonts=oxygen oxygenmono
+    conflicts=ttf-oxygen-git
+    provides=${conflicts}
+
+    [share]
+    fonts=share sharetech sharetechmono
+
+The <name> argument(s) specifies the name of the package that is to be
+created.  If a package manifest with <name> is found in the manifest database
+or if a package manifest contains a font with a matching <name>, then that
+package is created.  If such a package manifest exists in the database, it is
+necessarily unique: the tool ensures that a manifest database may not contain
+package manifests that overlap in font coverage.
+
+If <name> cannot be found anywhere in the package database but is the name of
+an existing font in the Google Fonts repository, a package is created
+containing only this font with default settings as specified by the [DEFAULT]
+section in the manifest database.
+
+If <name> is still not found, then the tool fails with an error and prints a
+list of potential fonts with similar names.  You can intentionally pass in a
+name containing a question mark character to force such a search.
+
+Each package is created in a subdirectory of the current working directory
+named "ttf-<name>-gf".
+
+If the packages already exist, they are overwritten.
+
+If -i is specified, each package is installed using makepkg.
+"""[1:]
+
+#@shell_quote[
+#@requires: mod:re
+def shell_quote(string):
+    # we try to be conservative here because some shells have more special
+    # characters than others (`!` and `^` are not safe); we require empty
+    # strings to be quoted
+    if re.match("[]0-9A-Za-z/@:.,_+-]+$", string):
+        return string
+    return "'{0}'".format(string.replace("'", "'\\''"))
+#@]
+
+class Script(object):
+    '''Prevents quoting.'''
+
+    def __init__(self, string):
+        self.string = string
+
+    def __repr__(self):
+        return "Script({!r})".format(self.string)
+
+    def __str__(self):
+        return self.string
+
+def quote(string):
+    if isinstance(string, Script):
+        return string.string
+    return shell_quote(string)
+
+def quote_array(strings):
+    return " ".join(map(quote, strings))
+
+def call(cmd, cwd=None):
+    e = subprocess.call(cmd, cwd=cwd)
+    if e != 0:
+        sys.exit(e)
+
+def init_git_repo(path, url, branch="master"):
+    if os.path.exists(path):
+        call(["git", "-C", path, "fetch", "origin", branch])
+        call(["git", "-C", path, "checkout", "-q", "--detach",
+              "origin/" + branch])
+    else:
+        # git automatically creates the intermediate directories
+        call(["git", "clone", "-n", "--single-branch", url, path])
+        call(["git", "-C", path, "checkout", "-q", "--detach",
+              "origin/" + branch])
+        call(["git", "-C", path, "branch", "-q", "-D", branch])
+
+def parse_font_metadata(path):
+    '''Parse information from the given METADATA.pb file.'''
+    with open(path) as f:
+        for line in f:
+            m = re.match(r'^name:\s*"([^"]*)', line)
+            if m:
+                name, = m.groups()
+                break
+    return {
+        "name": name,
+    }
+
+def render_pkgbuild(pkg):
+    s = []
+
+    if not ("pkgname" in pkg and "pkgver" in pkg):
+        raise ValueError("pkgbuild must contain 'pkgname' and 'pkgver'")
+
+    pkg = dict(pkg)
+    pkg["arch"] = pkg.get("arch", []) or ["any"]
+    pkg["pkgrel"] = pkg.get("pkgrel", "1")
+
+    # not required, but recommended
+    maintainer = str(pkg.get("maintainer", ""))
+    if maintainer:
+        s.append("# Maintainer: {}\n".format(re.sub("[\r\n]", "", maintainer)))
+
+    s.append("pkgname={}\n".format(quote(pkg["pkgname"])))
+    s.append("pkgver={}\n".format(quote(pkg["pkgver"])))
+    s.append("pkgrel={}\n".format(quote(pkg["pkgrel"])))
+
+    epoch = int(pkg.get("epoch", 0))
+    if epoch != 0:
+        s.append("epoch={}\n".format(epoch))
+
+    attrs = [
+        ("pkgdesc", str),               # not required, but recommended
+        ("arch", list),                 # required; defaults to ["any"]
+        ("url", str),                   # not required, but recommended
+        ("license", list),              # not required, but recommended
+        ("groups", list),
+        ("depends", list),
+        ("optdepends", list),
+        ("makedepends", list),
+        ("checkdepends", list),
+        ("provides", list),
+        ("conflicts", list),
+        ("replaces", list),
+        ("backup", list),
+        ("options", list),
+        ("install", str),
+        ("changelog", str),
+        ("source", list),
+        ("validpgpkeys", list),
+        ("noextract", list),
+    ]
+
+    for attr_name, attr_type in attrs:
+        if attr_type == str:
+            value = pkg.get(attr_name, "")
+            if value:
+                s.append(attr_name)
+                s.append("=")
+                s.append(quote(value))
+                s.append("\n")
+        elif attr_type == list:
+            value = tuple(pkg.get(attr_name, []))
+            if value:
+                s.append(attr_name)
+                s.append("=(")
+                s.append(quote_array(value))
+                s.append(")\n")
+
+    s.append("sha512sums=()\n")
+
+    body = pkg.get("pkgver_func", "")
+    if body:
+        s.append("\npkgver() {\n")
+        s.append(str(body))
+        s.append("}\n")
+
+    for func_name in ["prepare", "build", "check", "package"]:
+        body = pkg.get(func_name, "")
+        if body:
+            s.append("\n")
+            s.append(func_name)
+            s.append("() {\n")
+            s.append(str(body))
+            s.append("}\n")
+
+    return "".join(s)
+
+LICENSES = [
+    {
+        "dir": "apache",
+        "license": "Apache",
+        "license_files": [],
+    },
+    {
+        "dir": "ofl",
+        "license": "custom:OFL",
+        "license_files": ["OFL.txt"],
+    },
+    {
+        "dir": "ufl",
+        "license": "custom:UFL",
+        "license_files": ["UFL.txt"],
+    },
+]
+
+class UserError(Exception):
+    pass
+
+class FontNotFoundError(Exception):
+    def __init__(self, font_name, *args):
+        super(FontNotFoundError, self).__init__(self, font_name, *args)
+        self.font_name = font_name
+
+def find_font(repo, font_name):
+    for license_info in LICENSES:
+        font_dir = os.path.join(repo, license_info["dir"], font_name)
+        if os.path.isdir(font_dir):
+            return font_dir, license_info
+    raise FontNotFoundError(font_name)
+
+def get_font_info(repo, font_name):
+    font_dir, license_info = find_font(repo, font_name)
+
+    long_hash = subprocess.check_output(
+        ["git", "-C", repo, "rev-list", "-n", "1", "HEAD", "--", font_dir],
+        universal_newlines=True).strip()
+    revision = int(subprocess.check_output(
+        ["git", "-C", repo, "rev-list", "--count", long_hash],
+        universal_newlines=True).strip())
+    short_hash = subprocess.check_output(
+        ["git", "-C", repo, "rev-parse", "--short", long_hash],
+        universal_newlines=True).strip()
+    metadata = parse_font_metadata(os.path.join(font_dir, "METADATA.pb"))
+    font_files = [fn for fn in os.listdir(font_dir)
+                  if os.path.splitext(fn)[1].lower() == ".ttf"]
+
+    return {
+        "dir": font_dir,
+        "revision": revision,
+        "short_hash": short_hash,
+        "full_name": metadata["name"],
+        "license": license_info["license"],
+        "license_files": license_info["license_files"],
+        "font_files": font_files,
+    }
+
+def err_font_not_found(prog, repo, font_name):
+    sys.stderr.write("{prog}: font not found: {font_name}\n"
+                     .format(**locals()))
+    sys.stderr.flush()
+    font_name = font_name.lower().strip().replace("?", "")
+    found_candidates = False
+    os.chdir(repo)                      # needed for glob
+    for path in glob.glob("*/*/METADATA.pb"):
+        candidate = {
+            "font_name": os.path.basename(os.path.dirname(path)),
+            "full_name": parse_font_metadata(path)["name"],
+        }
+        if (font_name in candidate["font_name"].lower() or
+            font_name in candidate["full_name"].lower()):
+            if not found_candidates:
+                sys.stderr.write("{prog}: did you mean: ".format(**locals()))
+                found_candidates = True
+            else:
+                sys.stderr.write(", ")
+            sys.stderr.write("{font_name} ({full_name})".format(**candidate))
+            sys.stderr.flush()
+    if found_candidates:
+        sys.stderr.write("\n")
+    sys.stderr.flush()
+    sys.exit(1)
+
+PKGINSTALL = """
+post_install() {
+    fc-cache -s
+    mkfontscale /usr/share/fonts/TTF
+    mkfontdir /usr/share/fonts/TTF
+}
+
+post_upgrade() {
+    post_install
+}
+
+post_remove() {
+    post_install
+}
+"""[1:]
+
+def english_join(items):
+    if len(items) == 0:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return items[0] + " and " + items[1]
+    return ", ".join(items[:-1]) + ", and " + items[-1]
+
+def init_pkg(repo, name, manifest, common):
+    generic_pkgname = "ttf-" + name
+
+    pkg = {}
+    pkg["pkgname"] = generic_pkgname + "-gf"
+    pkg["arch"] = ["any"]
+    pkg["url"] = "https://github.com/google/fonts"
+    pkg["depends"] = [
+        "fontconfig",
+        "xorg-fonts-encodings",
+        "xorg-mkfontdir",
+        "xorg-mkfontscale",
+    ]
+    pkg["install"] = Script("${pkgname}.install")
+    install_file = "{}.install".format(pkg["pkgname"])
+    srcdir = pkg["pkgname"]
+
+    # import information from manifest
+    pkg["maintainer"] = manifest.get("maintainer", "none")
+    pkg["pkgrel"] = manifest.get("pkgrel", "1")
+    pkg["epoch"] = manifest.get("epoch", 0)
+    pkg["pkgdesc"] = manifest.get("pkgdesc", "")
+    pkg["provides"] = sorted(frozenset(manifest.get("provides", "").split()) |
+                             frozenset([generic_pkgname, "ttf-font"]))
+    pkg["conflicts"] = sorted(frozenset(manifest.get("conflicts", "").split()) |
+                              frozenset(common.get("conflicts", "").split()) |
+                              frozenset([generic_pkgname]))
+    font_names = manifest.get("fonts", "").split()
+    if not font_names:
+        font_names = [name]
+
+    fonts = [get_font_info(repo, font_name) for font_name in font_names]
+    newest_font = max(fonts, key=lambda font: font["revision"])
+    pkg["pkgver"] = "r{}.{}".format(newest_font["revision"],
+                                    newest_font["short_hash"])
+
+    # create the package directory and start pulling in the files
+    os.makedirs(srcdir, exist_ok=True)
+    license_files = set()
+    font_files = set()
+    for font in fonts:
+        for bn in (frozenset(font["license_files"]) - license_files |
+                   frozenset(font["font_files"]) - font_files):
+            shutil.copy(os.path.join(font["dir"], bn),
+                        os.path.join(srcdir, bn))
+        license_files.update(font["license_files"])
+        font_files.update(font["font_files"])
+    license_files = sorted(license_files)
+    font_files = sorted(font_files)
+    if not pkg["pkgdesc"]:
+        pkg["pkgdesc"] = ("{} fonts from the Google Fonts catalog"
+                          .format(english_join(
+                              sorted(frozenset(font["full_name"]
+                                               for font in fonts)))))
+    pkg["license"] = sorted(frozenset(font["license"] for font in fonts))
+    pkg["source"] = sorted(license_files + font_files)
+
+    s = []
+    s.append('cd "${srcdir}"\n')
+    if license_files:
+        s.append('install -Dm644 -t "${pkgdir}/usr/share/licenses/${pkgname}" ')
+        s.append(quote_array(license_files))
+        s.append("\n")
+    s.append('install -Dm644 -t "${pkgdir}/usr/share/fonts/TTF" ')
+    s.append(quote_array(font_files))
+    s.append("\n")
+    pkg["package"] = "    " + ("".join(x for x in s)
+                               .replace("\n", "\n    ").rstrip(" "))
+
+    with open(os.path.join(srcdir, "PKGBUILD"), "w") as f:
+        f.write(render_pkgbuild(pkg))
+        f.flush()
+    with open(os.path.join(srcdir, install_file), "w") as f:
+        f.write(PKGINSTALL)
+        f.flush()
+    call(["updpkgsums"], cwd=srcdir)
+    call(["namcap", os.path.join(srcdir, "PKGBUILD")])
+    return pkg["pkgname"]
+
+def main():
+    prog = sys.argv[0]
+    p = argparse.ArgumentParser(
+        description=DESCRIPTION,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("-d", "--manifest-database",
+                   default="google-font-pkgs.conf",
+                   help="used to override package creation settings")
+    p.add_argument("-i", "--install", action="store_true",
+                   help="after packages are created, install them via makepkg")
+    p.add_argument("--needed", action="store_true",
+                   help="flag passed to makepkg")
+    p.add_argument("--noconfirm", action="store_true",
+                   help="flag passed to makepkg")
+    p.add_argument("names", metavar="name", nargs="+",
+                   help="list of packages to create/update")
+    kwargs = vars(p.parse_args())
+
+    manifests = configparser.ConfigParser(
+        interpolation=configparser.ExtendedInterpolation())
+    manifests.read(kwargs["manifest_database"])
+
+    # get and refresh the Google Fonts repo
+    cache_dir = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+    repo = os.path.join(cache_dir, "google-fonts-git")
+    init_git_repo(repo, "https://github.com/google/fonts")
+
+    all_names = list(manifests.keys())
+    all_names.remove("DEFAULT")
+
+    if "all" in all_names:
+        sys.stderr.write('{prog}: manifest database error: '
+                         'invalid package name: "all"\n'
+                         .format(**locals()))
+        sys.stderr.flush()
+        sys.exit(1)
+
+    if "all" in kwargs["names"]:
+        kwargs["names"] = all_names
+
+    # if a font A contains fonts B and C, then B and C are aliases of font A
+    # (font packages within the same database cannot contain overlapping fonts)
+    deref_alias = {}
+    for name in all_names:
+        font_names = manifests[name].get("fonts", "").split()
+        for font_name in frozenset(font_names + [name]):
+            old_name = deref_alias.get(font_name, None)
+            if old_name is not None:
+                sys.stderr.write(
+                    "{prog}: manifest database error: "
+                    "package '{name}' cannot own the font '{font_name}' "
+                    "because it already belongs to '{old_name}'\n"
+                    .format(**locals()))
+                sys.stderr.flush()
+                sys.exit(1)
+            deref_alias[font_name] = name
+
+    target_manifests = {}
+    for name in kwargs["names"]:
+        try:
+            # ConfigParser.get doesn't work the way dict.get does
+            manifest = manifests[name]
+        except KeyError:
+            manifest = manifests["DEFAULT"]
+        target_manifests[deref_alias.get(name, name)] = manifest
+
+    for name, manifest in sorted(target_manifests.items()):
+        try:
+            pkgname = init_pkg(repo, name, manifest, manifests["DEFAULT"])
+        except FontNotFoundError as e:
+            err_font_not_found(prog, repo, e.font_name)
+        except UserError as e:
+            sys.stderr.write("{}\n".format(e))
+            sys.stderr.flush()
+            sys.exit(1)
+
+    # install package
+    if kwargs["install"]:
+        cmd = ["makepkg", "-i"]
+        if kwargs["needed"]:
+            cmd.append("--needed")
+        if kwargs["noconfirm"]:
+            cmd.append("--noconfirm")
+        call(cmd, cwd=pkgname)
+
+if __name__ == "__main__":
+    main()

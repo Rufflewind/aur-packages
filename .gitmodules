@@ -1,12 +1,12 @@
 [submodule "gitit"]
 	path = gitit
 	url = aur@aur.archlinux.org:gitit
-[submodule "lpp"]
-	path = lpp
-	url = aur@aur.archlinux.org:lpp
 [submodule "fresco"]
 	path = fresco
 	url = aur@aur.archlinux.org:fresco
+[submodule "lpp"]
+	path = lpp
+	url = aur@aur.archlinux.org:lpp
 [submodule "slatec"]
 	path = slatec
 	url = aur@aur.archlinux.org:slatec
