@@ -13,3 +13,6 @@
 [submodule "slatec-git"]
 	path = slatec-git
 	url = aur@aur.archlinux.org:slatec-git
+[submodule "ttf-oxygen-gf"]
+	path = ttf-oxygen-gf
+	url = aur@aur.archlinux.org:ttf-oxygen-gf
