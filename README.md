@@ -3,17 +3,10 @@
 To avoid forgetting to update `.SRCINFO`, be sure to add the pre-commit hooks,
 as shown in the commands below.
 
-## Management
+## Initialial clone
 
-### Making quick commits
-
-To make a quick commit within a submodule, do:
-
-    git commit -m `../getpkgver`
-
-### Initializing the submodules
-
-Run this the first time you clone `aur-packages`.
+Run these commands the first time you clone `aur-packages` to initialize the
+submodules properly:
 
 ~~~sh
 git submodule update --init --recursive &&
@@ -22,6 +15,16 @@ git config -f .gitmodules --path --get-regexp path | cut -f 2 -d " " |
         git_dir=`git -C "${dir}" rev-parse --git-dir`
         cp -i -p pre-commit "${git_dir}/hooks/pre-commit"
     done
+~~~
+
+## Management
+
+### Making quick commits
+
+To make a quick commit within a submodule, do:
+
+~~~sh
+git commit -m `../getpkgver`
 ~~~
 
 ### Cloning repositories
