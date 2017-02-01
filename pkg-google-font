@@ -270,22 +270,6 @@ def err_font_not_found(prog, repo, font_name):
     sys.stderr.flush()
     sys.exit(1)
 
-PKGINSTALL = """
-post_install() {
-    fc-cache -s
-    mkfontscale /usr/share/fonts/TTF
-    mkfontdir /usr/share/fonts/TTF
-}
-
-post_upgrade() {
-    post_install
-}
-
-post_remove() {
-    post_install
-}
-"""[1:]
-
 def english_join(items):
     if len(items) == 0:
         return ""
@@ -308,8 +292,6 @@ def init_pkg(repo, name, manifest, common):
         "xorg-mkfontdir",
         "xorg-mkfontscale",
     ]
-    pkg["install"] = Script("${pkgname}.install")
-    install_file = "{}.install".format(pkg["pkgname"])
     srcdir = pkg["pkgname"]
 
     # import information from manifest
@@ -366,9 +348,6 @@ def init_pkg(repo, name, manifest, common):
 
     with open(os.path.join(srcdir, "PKGBUILD"), "w") as f:
         f.write(render_pkgbuild(pkg))
-        f.flush()
-    with open(os.path.join(srcdir, install_file), "w") as f:
-        f.write(PKGINSTALL)
         f.flush()
     call(["updpkgsums"], cwd=srcdir)
     call(["namcap", os.path.join(srcdir, "PKGBUILD")])
