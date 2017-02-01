@@ -3,7 +3,7 @@
 To avoid forgetting to update `.SRCINFO`, be sure to add the pre-commit hooks,
 as shown in the commands below.
 
-## Initialial clone
+## Initial clone
 
 Run these commands the first time you clone `aur-packages` to initialize the
 submodules properly:
@@ -12,8 +12,9 @@ submodules properly:
 git submodule update --init --recursive &&
 git config -f .gitmodules --path --get-regexp path | cut -f 2 -d " " |
     while read -r dir; do
-        git_dir=`git -C "${dir}" rev-parse --git-dir`
-        cp -i -p pre-commit "${git_dir}/hooks/pre-commit"
+        git_dir=`git -C "${dir}" rev-parse --git-dir` &&
+        git -C "${git_dir}" checkout master &&
+        cp -p pre-commit "${git_dir}/hooks/pre-commit"
     done
 ~~~
 
