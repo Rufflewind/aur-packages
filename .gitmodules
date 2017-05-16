@@ -19,3 +19,6 @@
 [submodule "ttf-share-gf"]
 	path = ttf-share-gf
 	url = aur@aur.archlinux.org:ttf-share-gf
+[submodule "python2-fastimport-git"]
+	path = python2-fastimport-git
+	url = aur@aur.archlinux.org:python2-fastimport-git

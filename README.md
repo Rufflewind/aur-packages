@@ -30,32 +30,37 @@ git commit -m `../getpkgver`
 
 ### Cloning repositories
 
-Run this to clone new or existing packages:
+ 1. To clone a new or existing package, first run:
 
-~~~sh
-clone_aur() {
-    git clone "aur@aur.archlinux.org:$1" &&
-    (
-        cd "$1" &&
-        cp -p ../pre-commit "`git rev-parse --git-dir`/hooks/pre-commit" &&
-        git-config-user-aur
-    )
-}
+    ~~~sh
+    clone_aur() {
+        git clone "aur@aur.archlinux.org:$1" &&
+        (
+            cd "$1" &&
+            cp -p ../pre-commit "`git rev-parse --git-dir`/hooks/pre-commit" &&
+            git-config-user-aur
+        )
+    }
 
-add_aur() {
-    clone_aur "$1" &&
-    git submodule add "aur@aur.archlinux.org:$1"
-}
+    clone_aur ⟨pkgname⟩
+    ~~~
 
-# use clone_aur instead if you don't want to use submodules
-add_aur ⟨pkgname⟩
-~~~
+ 2. If the package doesn't yet exist, go make a commit in the subdirectory now
+    and then go back to the parent directory for the next step.  If the
+    package does already exist, skip this step.
 
-If the package doesn't exist, the `git submodule add` command will succeed but
-it won't add the magical gitlink entry that anchors the submodule to a
-specific commit as there is no commit yet.  To remedy this, make a commit in
-the submodule, then run `git add ⟨pkgname⟩` in the parent repository to add
-the gitlink entry.
+ 3. Run this to add the subdirectory as a submodule:
+
+    ~~~sh
+    git submodule add aur@aur.archlinux.org:⟨pkgname⟩
+    ~~~
+
+The reason for the second step is that if the package doesn't exist, `git
+submodule add` will only partially succeed.  It won't add the magical gitlink
+entry that anchors the submodule to a specific commit as there is no commit
+yet.  If you called `git submodule add` too early, you make a commit in the
+submodule as in step 2 and then run `git add ⟨pkgname⟩` in the parent
+repository to add the missing gitlink entry.
 
 ## Creating packages
 
