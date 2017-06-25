@@ -288,9 +288,7 @@ def init_pkg(repo, name, manifest, common):
     pkg["url"] = "https://github.com/google/fonts"
     pkg["depends"] = [
         "fontconfig",
-        "xorg-fonts-encodings",
-        "xorg-mkfontdir",
-        "xorg-mkfontscale",
+        "xorg-font-utils",
     ]
     srcdir = pkg["pkgname"]
 
