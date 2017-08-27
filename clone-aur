@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+dir=`dirname "$0"`
+cd "${dir}"
+
+git clone "aur@aur.archlinux.org:$1"
+cd "$1"
+cp -p ../pre-commit "`git rev-parse --git-dir`/hooks/pre-commit"
+git-config-user-aur
