@@ -25,3 +25,6 @@
 [submodule "python2-fastimport-git"]
 	path = python2-fastimport-git
 	url = aur@aur.archlinux.org:python2-fastimport-git
+[submodule "stack-bin"]
+	path = stack-bin
+	url = aur@aur.archlinux.org:stack-bin
