@@ -4,6 +4,9 @@
 [submodule "fresco"]
 	path = fresco
 	url = aur@aur.archlinux.org:fresco
+[submodule "ghc-pristine"]
+	path = ghc-pristine
+	url = aur@aur.archlinux.org:ghc-pristine
 [submodule "lpp"]
 	path = lpp
 	url = aur@aur.archlinux.org:lpp
