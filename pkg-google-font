@@ -93,6 +93,11 @@ def init_git_repo(path, url, branch="master"):
               "origin/" + branch])
         call(["git", "-C", path, "branch", "-q", "-D", branch])
 
+def get_long_hash(repo, path):
+    return subprocess.check_output(
+        ["git", "-C", repo, "rev-list", "-n", "1", "HEAD", "--", path],
+        universal_newlines=True).strip()
+
 def parse_font_metadata(path):
     '''Parse information from the given METADATA.pb file.'''
     with open(path) as f:
@@ -185,6 +190,8 @@ def render_pkgbuild(pkg):
 
     return "".join(s)
 
+BASE_URL = "https://raw.githubusercontent.com/google/fonts"
+
 LICENSES = [
     {
         "dir": "apache",
@@ -213,17 +220,16 @@ class FontNotFoundError(Exception):
 
 def find_font(repo, font_name):
     for license_info in LICENSES:
-        font_dir = os.path.join(repo, license_info["dir"], font_name)
-        if os.path.isdir(font_dir):
-            return font_dir, license_info
+        rel_font_dir = os.path.join(license_info["dir"], font_name)
+        if os.path.isdir(os.path.join(repo, rel_font_dir)):
+            return rel_font_dir, license_info
     raise FontNotFoundError(font_name)
 
 def get_font_info(repo, font_name):
-    font_dir, license_info = find_font(repo, font_name)
+    rel_font_dir, license_info = find_font(repo, font_name)
+    font_dir = os.path.join(repo, rel_font_dir)
 
-    long_hash = subprocess.check_output(
-        ["git", "-C", repo, "rev-list", "-n", "1", "HEAD", "--", font_dir],
-        universal_newlines=True).strip()
+    long_hash = get_long_hash(repo, font_dir)
     revision = int(subprocess.check_output(
         ["git", "-C", repo, "rev-list", "--count", long_hash],
         universal_newlines=True).strip())
@@ -236,7 +242,9 @@ def get_font_info(repo, font_name):
 
     return {
         "dir": font_dir,
+        "rel_dir": rel_font_dir,
         "revision": revision,
+        "long_hash": long_hash,
         "short_hash": short_hash,
         "full_name": metadata["name"],
         "license": license_info["license"],
@@ -279,6 +287,10 @@ def english_join(items):
         return items[0] + " and " + items[1]
     return ", ".join(items[:-1]) + ", and " + items[-1]
 
+def slugify(url):
+    return (re.sub("^https://raw\.githubusercontent\.com/", "", url)
+            .replace("/", "-"))
+
 def init_pkg(repo, name, manifest, common):
     generic_pkgname = "ttf-" + name
 
@@ -313,34 +325,50 @@ def init_pkg(repo, name, manifest, common):
 
     # create the package directory and start pulling in the files
     os.makedirs(srcdir, exist_ok=True)
-    license_files = set()
-    font_files = set()
+    license_files = {}
+    font_files = {}
     for font in fonts:
-        for bn in (frozenset(font["license_files"]) - license_files |
-                   frozenset(font["font_files"]) - font_files):
-            shutil.copy(os.path.join(font["dir"], bn),
-                        os.path.join(srcdir, bn))
-        license_files.update(font["license_files"])
-        font_files.update(font["font_files"])
-    license_files = sorted(license_files)
-    font_files = sorted(font_files)
+        for bn in frozenset(font["license_files"]) - frozenset(license_files):
+            path = os.path.join(font["rel_dir"], bn)
+            license_files[bn] = os.path.join(
+                BASE_URL,
+                get_long_hash(repo, path),
+                path,
+            )
+        for bn in frozenset(font["font_files"]) - frozenset(font_files):
+            font_files[bn] = os.path.join(
+                BASE_URL,
+                font["long_hash"],
+                font["rel_dir"],
+                bn,
+            )
+    license_file_urls = tuple(license_files.values())
+    font_file_urls = tuple(font_files.values())
     if not pkg["pkgdesc"]:
         pkg["pkgdesc"] = ("{} fonts from the Google Fonts catalog"
                           .format(english_join(
                               sorted(frozenset(font["full_name"]
                                                for font in fonts)))))
     pkg["license"] = sorted(frozenset(font["license"] for font in fonts))
-    pkg["source"] = sorted(license_files + font_files)
+    prefix = pkg["pkgname"]
+    pkg["source"] = [v for _, v in
+                     sorted((os.path.basename(url), slugify(url) + "::" + url)
+                            for url in license_file_urls + font_file_urls)]
 
     s = []
     s.append('cd "${srcdir}"\n')
-    if license_files:
-        s.append('install -Dm644 -t "${pkgdir}/usr/share/licenses/${pkgname}" ')
-        s.append(quote_array(license_files))
-        s.append("\n")
-    s.append('install -Dm644 -t "${pkgdir}/usr/share/fonts/TTF" ')
-    s.append(quote_array(font_files))
-    s.append("\n")
+    for name, url in sorted(license_files.items()):
+        s.append('install -Dm644 ')
+        s.append(quote(slugify(url)))
+        s.append(' "${pkgdir}/usr/share/licenses/${pkgname}/"')
+        s.append(quote(name))
+        s.append('\n')
+    for name, url in sorted(font_files.items()):
+        s.append('install -Dm644 ')
+        s.append(quote(slugify(url)))
+        s.append(' "${pkgdir}/usr/share/fonts/TTF/${pkgname}/"')
+        s.append(quote(name))
+        s.append('\n')
     pkg["package"] = "    " + ("".join(x for x in s)
                                .replace("\n", "\n    ").rstrip(" "))
 
