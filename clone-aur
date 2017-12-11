@@ -3,7 +3,10 @@ set -eu
 dir=`dirname "$0"`
 cd "${dir}"
 
-git clone "aur@aur.archlinux.org:$1"
-cd "$1"
-cp -p ../pre-commit "`git rev-parse --git-dir`/hooks/pre-commit"
-git-config-user-aur
+git clone "aur@aur.archlinux.org:$1" "pkg/$1"
+printf "%s\n" "$1" >>packages.conf
+sort packages.conf | uniq >packages.conf.tmp
+mv packages.conf.tmp packages.conf
+cd "pkg/$1"
+cp -p ../../pre-commit "`git rev-parse --git-dir`/hooks/pre-commit"
+git-config-user-aur >/dev/null

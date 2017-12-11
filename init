@@ -3,9 +3,6 @@ set -eu
 dir=`dirname "$0"`
 cd "${dir}"
 
-git submodule update --init --recursive
-git config -f .gitmodules --path --get-regexp path | cut -f 2 -d " " |
-    while read -r dir; do
-        git_dir=`git -C "${dir}" rev-parse --absolute-git-dir` &&
-        cp -p pre-commit "${git_dir}/hooks/pre-commit"
-    done
+while read -r pkg; do
+    [ -d "pkg/$pkg" ] || ./clone-aur "$pkg"
+done <packages.conf

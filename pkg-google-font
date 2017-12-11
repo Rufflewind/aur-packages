@@ -302,7 +302,7 @@ def init_pkg(repo, name, manifest, common):
         "fontconfig",
         "xorg-font-utils",
     ]
-    srcdir = pkg["pkgname"]
+    srcdir = os.path.join(manifest.get("DIR", "."), pkg["pkgname"])
 
     # import information from manifest
     pkg["maintainer"] = manifest.get("maintainer", "none")
