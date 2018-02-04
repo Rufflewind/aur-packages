@@ -1,5 +1,5 @@
 #!/bin/sh
 set -e
 namcap PKGBUILD
-mksrcinfo
+makepkg --printsrcinfo > .SRCINFO
 git add .SRCINFO
