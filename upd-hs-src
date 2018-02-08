@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+# Reads cabal.config and updates it along with PKGBUILD.
+
+import json, os, re, subprocess, sys, tempfile
+
+# We exclude non-installable packages, as defined in: https://github.com/haskell/cabal/blob/5d3618a144991cbe04126abac4e68e7ce1b56df3/cabal-install/Distribution/Solver/Modular/Solver.hs#L136-L144
+#
+# (Most boot packages however can be reinstalled and it is often necessary to
+# do so to satisfy constraints.)
+NON_INSTALLABLE = [
+    "base",
+    "ghc-prim",
+    "integer-gmp",
+    "integer-simple",
+    "template-haskell",
+]
+
+def get_metadata_revision(name, ver, cache_file):
+    try:
+        with open(cache_file) as f:
+            cache = json.load(f)
+    except OSError:
+        cache = {}
+    key = f"{name}-{ver}"
+    if key not in cache:
+        html = subprocess.check_output(
+            ["curl", "-fL",
+             f"https://hackage.haskell.org/package/{name}-{ver}/revisions/"],
+            universal_newlines=True)
+        rev = max(int(rev) for rev in
+                  re.findall(r'/revision/(\d+).cabal"', html))
+        cache[key] = rev
+        with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=os.path.dirname(cache_file), delete=False) as f:
+            json.dump(cache, f)
+            os.rename(f.name, cache_file)
+    return cache[key]
+
+def read_cabal_config(cabal_config):
+    constraints = []
+    sources = [cabal_config]
+    metadatas = []
+    noextract = []
+    with open(cabal_config) as f:
+        lines = list(f)
+    for line in lines:
+        name, ver = re.search(
+            r"([^\s=:]+)\s*([^\s:,]+),?$",
+            line,
+        ).groups()
+        if ver == "installed":
+            constraints.append(name + " installed")
+            continue
+        ver, = re.match("==(.*)", ver).groups()
+        if name in NON_INSTALLABLE:
+            constraints.append(name + " installed")
+            continue
+        else:
+            constraints.append(name + " ==" + ver)
+        if re.match("rts$|z-.*-z-", name):
+            continue
+        tar = ("https://hackage.haskell.org/package/"
+               f"{name}-{ver}/{name}-{ver}.tar.gz")
+        sources.append(tar)
+        noextract.append(os.path.basename(tar))
+        rev = get_metadata_revision(name, ver, "metadata-revision.cache~")
+        if rev:
+            metadatas.append(f"{name}-{ver}-{rev}.cabal::"
+                             "https://hackage.haskell.org/package/"
+                             f"{name}-{ver}/revision/{rev}.cabal")
+    return sources + metadatas, noextract, constraints
+
+def update_cabal_config(cabal_config, constraints):
+    with tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=os.path.dirname(cabal_config), delete=False) as f:
+        f.write("constraints: {}\n"
+                .format(",\n             ".join(constraints)))
+        os.rename(f.name, cabal_config)
+
+def update_pkgbuild(pkgbuild, source, noextract):
+    with open(pkgbuild) as f:
+        contents = f.read()
+    with tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=os.path.dirname(pkgbuild), delete=False) as f:
+        f.write(re.sub(
+            r'source=\([^)]*\)',
+            "source=({})".format("\n        ".join(source)),
+            re.sub(
+                r'noextract=\([^)]*\)',
+                "noextract=({})".format("\n           ".join(noextract)),
+                contents,
+            ),
+        ))
+        os.rename(f.name, pkgbuild)
+
+sources, noextract, constraints = read_cabal_config("cabal.config")
+update_cabal_config("cabal.config", constraints)
+update_pkgbuild("PKGBUILD", sources, noextract)
