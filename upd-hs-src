@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # Reads cabal.config and updates it along with PKGBUILD.
+# You can use cabal-resolve to derive a basic cabal.config file.
 
-import json, os, re, subprocess, sys, tempfile
+import argparse, json, os, re, subprocess, sys, tempfile
 
 # We exclude non-installable packages, as defined in: https://github.com/haskell/cabal/blob/5d3618a144991cbe04126abac4e68e7ce1b56df3/cabal-install/Distribution/Solver/Modular/Solver.hs#L136-L144
 #
@@ -39,11 +40,11 @@ def get_metadata_revision(name, ver, cache_file):
 
 def read_cabal_config(cabal_config):
     constraints = []
-    sources = [cabal_config]
-    metadatas = []
+    sources = []
     noextract = []
     with open(cabal_config) as f:
         lines = list(f)
+    pkgs = {}
     for line in lines:
         name, ver = re.search(
             r"([^\s=:]+)\s*([^\s:,]+),?$",
@@ -58,18 +59,21 @@ def read_cabal_config(cabal_config):
             continue
         else:
             constraints.append(name + " ==" + ver)
+        pkgs[name] = ver    # cabal freeze sometimes creates duplicate entries
+    for name, ver in pkgs.items():
         if re.match("rts$|z-.*-z-", name):
             continue
-        tar = ("https://hackage.haskell.org/package/"
+        tar_name = f"haskell-{name}-{ver}.tar.gz"
+        tar = (f"{tar_name}::https://hackage.haskell.org/package/"
                f"{name}-{ver}/{name}-{ver}.tar.gz")
         sources.append(tar)
-        noextract.append(os.path.basename(tar))
+        noextract.append(tar_name)
         rev = get_metadata_revision(name, ver, "metadata-revision.cache~")
         if rev:
-            metadatas.append(f"{name}-{ver}-{rev}.cabal::"
-                             "https://hackage.haskell.org/package/"
-                             f"{name}-{ver}/revision/{rev}.cabal")
-    return sources + metadatas, noextract, constraints
+            sources.append(f"haskell-{name}-{ver}-{rev}.cabal::"
+                           "https://hackage.haskell.org/package/"
+                           f"{name}-{ver}/revision/{rev}.cabal")
+    return sorted(sources), noextract, constraints
 
 def update_cabal_config(cabal_config, constraints):
     with tempfile.NamedTemporaryFile(
@@ -96,6 +100,10 @@ def update_pkgbuild(pkgbuild, source, noextract):
         ))
         os.rename(f.name, pkgbuild)
 
-sources, noextract, constraints = read_cabal_config("cabal.config")
-update_cabal_config("cabal.config", constraints)
+p = argparse.ArgumentParser()
+p.add_argument("cabal_config", default="cabal.config")
+args = p.parse_args()
+sources, noextract, constraints = read_cabal_config(args.cabal_config)
+update_cabal_config(args.cabal_config, constraints)
 update_pkgbuild("PKGBUILD", sources, noextract)
+sys.stderr.write("Note: Don't forget to updpkgsums.\n")
