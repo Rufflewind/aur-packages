@@ -41,7 +41,6 @@ def get_metadata_revision(name, ver, cache_file):
 def read_cabal_config(cabal_config):
     constraints = []
     sources = []
-    noextract = []
     with open(cabal_config) as f:
         lines = list(f)
     pkgs = {}
@@ -67,13 +66,12 @@ def read_cabal_config(cabal_config):
         tar = (f"{tar_name}::https://hackage.haskell.org/package/"
                f"{name}-{ver}/{name}-{ver}.tar.gz")
         sources.append(tar)
-        noextract.append(tar_name)
         rev = get_metadata_revision(name, ver, "metadata-revision.cache~")
         if rev:
             sources.append(f"haskell-{name}-{ver}-{rev}.cabal::"
                            "https://hackage.haskell.org/package/"
                            f"{name}-{ver}/revision/{rev}.cabal")
-    return sorted(sources), noextract, constraints
+    return sorted(sources), constraints
 
 def update_cabal_config(cabal_config, constraints):
     with tempfile.NamedTemporaryFile(
@@ -83,7 +81,7 @@ def update_cabal_config(cabal_config, constraints):
                 .format(",\n             ".join(constraints)))
         os.rename(f.name, cabal_config)
 
-def update_pkgbuild(pkgbuild, source, noextract):
+def update_pkgbuild(pkgbuild, source):
     with open(pkgbuild) as f:
         contents = f.read()
     with tempfile.NamedTemporaryFile(
@@ -92,18 +90,14 @@ def update_pkgbuild(pkgbuild, source, noextract):
         f.write(re.sub(
             r'source=\([^)]*\)',
             "source=({})".format("\n        ".join(source)),
-            re.sub(
-                r'noextract=\([^)]*\)',
-                "noextract=({})".format("\n           ".join(noextract)),
-                contents,
-            ),
+            contents,
         ))
         os.rename(f.name, pkgbuild)
 
 p = argparse.ArgumentParser()
 p.add_argument("cabal_config", default="cabal.config")
 args = p.parse_args()
-sources, noextract, constraints = read_cabal_config(args.cabal_config)
+sources, constraints = read_cabal_config(args.cabal_config)
 update_cabal_config(args.cabal_config, constraints)
-update_pkgbuild("PKGBUILD", sources, noextract)
+update_pkgbuild("PKGBUILD", sources)
 sys.stderr.write("Note: Don't forget to updpkgsums.\n")
