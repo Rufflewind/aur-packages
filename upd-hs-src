@@ -38,7 +38,7 @@ def get_metadata_revision(name, ver, cache_file):
             os.rename(f.name, cache_file)
     return cache[key]
 
-def read_cabal_config(cabal_config):
+def read_cabal_config(cabal_config, boot_pkg_name_vers):
     constraints = []
     sources = []
     with open(cabal_config) as f:
@@ -53,11 +53,13 @@ def read_cabal_config(cabal_config):
             constraints.append(name + " installed")
             continue
         ver, = re.match("==(.*)", ver).groups()
-        if name in NON_INSTALLABLE:
+        if name in NON_INSTALLABLE or boot_pkg_name_vers.get(name) == ver:
             constraints.append(name + " installed")
             continue
-        else:
-            constraints.append(name + " ==" + ver)
+        if name in boot_pkg_name_vers:
+            sys.stderr.write(f"Note: {name}-{ver} is a boot package "
+                             f"but of a different version.\n")
+        constraints.append(name + " ==" + ver)
         pkgs[name] = ver    # cabal freeze sometimes creates duplicate entries
     for name, ver in pkgs.items():
         if re.match("rts$|z-.*-z-", name):
@@ -94,10 +96,20 @@ def update_pkgbuild(pkgbuild, source):
         ))
         os.rename(f.name, pkgbuild)
 
+def list_packages(package_db):
+    for filename in os.listdir(package_db):
+        m = re.match(r"(?s)(.*)-([^-]*)\.conf\Z", filename)
+        if m:
+            yield m.groups()
+
 p = argparse.ArgumentParser()
+p.add_argument("--boot-pkg-db",
+               default="/usr/share/ghc-pristine/lib/package.conf.d")
 p.add_argument("cabal_config", default="cabal.config")
+p.add_argument("pkgbuild")
 args = p.parse_args()
-sources, constraints = read_cabal_config(args.cabal_config)
+boot_pkg_name_vers = dict(list_packages(args.boot_pkg_db))
+sources, constraints = read_cabal_config(args.cabal_config, boot_pkg_name_vers)
 update_cabal_config(args.cabal_config, constraints)
-update_pkgbuild("PKGBUILD", sources)
+update_pkgbuild(args.pkgbuild, sources)
 sys.stderr.write("Note: Don't forget to updpkgsums.\n")
