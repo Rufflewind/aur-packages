@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+mkdir -p "/tmp/cabal-sandboxes-$USER"
+sandbox=`mktemp -d -p "/tmp/cabal-sandboxes-$USER"`
+cd "$sandbox"
+mkdir -p .cabal
+cat >.cabal/config <<EOF
+with-compiler: /usr/share/ghc-pristine/bin/ghc
+jobs: \$ncpus
+repository hackage.haskell.org
+  url: http://hackage.haskell.org/
+EOF
+echo 'exec cabal --config=.cabal/config "$@"' >cabal
+chmod +x cabal
+./cabal v1-sandbox init
+./cabal v1-update
+exec ./cabal v1-exec zsh
