@@ -29,11 +29,25 @@ pre-commit hooks.
 
 ### Updating dependency trees of Cabal packages
 
-Install the pcakage manually with the updated deps:
+Install `$pkg` manually with the updated deps:
 
-    cabal install --with-ghc=/usr/share/ghc-pristine/bin/ghc $my_package
+~~~sh
+set -eux
+pkg=my_package
+tmpdir=`mktemp -d`
+(
+    cd "$tmpdir"
+    cabal update
+    cabal sandbox init
+    echo 'with-compiler: /usr/share/ghc-pristine/bin/ghc' | tee cabal-config
+    cabal --config=cabal-config install $pkg
+    cabal exec -- sh -c 'cd gitit-* && cabal --config=../cabal-config freeze'
+)
+# update the PKGBUILD
+./upd-hs-src "$pkg" "$tmpdir/$pkg"-*/cabal.config "pkg/$pkg/PKGBUILD"
+~~~
 
-then freeze to obtain `cabal.config`.  Copy this into your `PKGBUILD` directory and then run `../../upd-hs-src`.  This will update `PKGBUILD` accordingly.  It also does some minor tweaks to `cabal.config`, but that's a bit pointless atm because we don't really include `cabal.config` as part of the package.
+Finally, bump the `pkgver` and then run `updpkgsums`.
 
 ## Google Font packages
 

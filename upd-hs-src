@@ -93,6 +93,7 @@ def update_pkgbuild(pkgbuild, source):
             r'source=\([^)]*\)',
             "source=({})".format("\n        ".join(source)),
             contents,
+            count=1,
         ))
         os.rename(f.name, pkgbuild)
 
@@ -105,11 +106,17 @@ def list_packages(package_db):
 p = argparse.ArgumentParser()
 p.add_argument("--boot-pkg-db",
                default="/usr/share/ghc-pristine/lib/package.conf.d")
+p.add_argument("pkgname", default="cabal.config")
 p.add_argument("cabal_config", default="cabal.config")
 p.add_argument("pkgbuild")
 args = p.parse_args()
 boot_pkg_name_vers = dict(list_packages(args.boot_pkg_db))
 sources, constraints = read_cabal_config(args.cabal_config, boot_pkg_name_vers)
 update_cabal_config(args.cabal_config, constraints)
-update_pkgbuild(args.pkgbuild, sources)
+update_pkgbuild(args.pkgbuild, sorted(sources + [
+    "haskell-{pkgname}-$pkgver.tar.gz::"
+    "https://hackage.haskell.org/package/"
+    "{pkgname}-$pkgver/{pkgname}-$pkgver.tar.gz"
+    .format(pkgname=args.pkgname),
+]))
 sys.stderr.write("Note: Don't forget to updpkgsums.\n")
