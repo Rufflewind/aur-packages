@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+version=`curl -ILSfs -o /dev/null -w "%{url_effective}" https://github.com/purescript/purescript/releases/latest | sed 's|.*/v\(.*\)|\1|'`
+echo "Upgrading to ${version}..."
+linux64_sha=`curl -LSfs "https://github.com/purescript/purescript/releases/download/v${version}/linux64.sha" | cut -d " " -f 1`
+sed -i "
+    s/^\(pkgver=\).*/\1${version}/;
+    s/^\(sha1sums=('\).*\(')\)/\1${linux64_sha}\2/;
+" pkg/purescript-bin/PKGBUILD
+git -C pkg/purescript-bin add PKGBUILD
+git -C pkg/purescript-bin commit -m "${version}"
+git -C pkg/purescript-bin --no-pager show -p --stat HEAD
+(
+    cd pkg/purescript-bin &&
+    makepkg -fi &&
+    got_version=`/usr/bin/purs --version`
+    [ "${version}" = "${got_version}" ] || {
+        echo >&2 "Installed purs has wrong version"
+        exit 1
+    }
+)
+git -C pkg/purescript-bin status
+cat <<EOF
+
+========================================
+
+All's good.  When ready, run:
+
+    git -C pkg/purescript-bin push
+
+EOF
