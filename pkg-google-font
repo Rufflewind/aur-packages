@@ -298,10 +298,7 @@ def init_pkg(repo, name, manifest, common):
     pkg["pkgname"] = generic_pkgname + "-gf"
     pkg["arch"] = ["any"]
     pkg["url"] = "https://github.com/google/fonts"
-    pkg["depends"] = [
-        "fontconfig",
-        "xorg-font-utils",
-    ]
+    pkg["depends"] = []
     srcdir = os.path.join(manifest.get("DIR", "."), pkg["pkgname"])
 
     # import information from manifest
