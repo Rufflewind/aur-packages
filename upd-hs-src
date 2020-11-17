@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Reads cabal.config and updates it along with PKGBUILD.
-# You can use cabal-resolve to derive a basic cabal.config file.
+# This script is used by haskell/Makefile.
 
 import argparse, json, os, re, subprocess, sys, tempfile
 
@@ -38,7 +38,7 @@ def get_metadata_revision(name, ver, cache_file):
             os.rename(f.name, cache_file)
     return cache[key]
 
-def read_cabal_config(cabal_config, boot_pkg_name_vers):
+def read_cabal_config(cabal_config, boot_pkg_name_vers, metadata_cache):
     constraints = []
     sources = []
     with open(cabal_config) as f:
@@ -46,13 +46,16 @@ def read_cabal_config(cabal_config, boot_pkg_name_vers):
     pkgs = {}
     for line in lines:
         name, ver = re.search(
-            r"([^\s=:]+)\s*([^\s:,]+),?$",
+            r"(?:any\.)?([^\s=:]+)\s*([^\s:,]+),?$",
             line,
         ).groups()
         if ver == "installed":
             constraints.append(name + " installed")
             continue
-        ver, = re.match("==(.*)", ver).groups()
+        match = re.match("==(.*)", ver)
+        if not match:
+            continue
+        ver, = match.groups()
         if name in NON_INSTALLABLE or boot_pkg_name_vers.get(name) == ver:
             constraints.append(name + " installed")
             continue
@@ -68,7 +71,7 @@ def read_cabal_config(cabal_config, boot_pkg_name_vers):
         tar = (f"{tar_name}::https://hackage.haskell.org/package/"
                f"{name}-{ver}/{name}-{ver}.tar.gz")
         sources.append(tar)
-        rev = get_metadata_revision(name, ver, "metadata-revision.cache~")
+        rev = get_metadata_revision(name, ver, metadata_cache)
         if rev:
             sources.append(f"haskell-{name}-{ver}-{rev}.cabal::"
                            "https://hackage.haskell.org/package/"
@@ -106,12 +109,17 @@ def list_packages(package_db):
 p = argparse.ArgumentParser()
 p.add_argument("--boot-pkg-db",
                default="/usr/share/ghc-pristine/lib/package.conf.d")
+p.add_argument("--metadata-cache", default="metadata-revision.cache~")
 p.add_argument("pkgname", default="cabal.config")
 p.add_argument("cabal_config", default="cabal.config")
 p.add_argument("pkgbuild")
 args = p.parse_args()
 boot_pkg_name_vers = dict(list_packages(args.boot_pkg_db))
-sources, constraints = read_cabal_config(args.cabal_config, boot_pkg_name_vers)
+sources, constraints = read_cabal_config(
+    args.cabal_config,
+    boot_pkg_name_vers,
+    args.metadata_cache,
+)
 update_cabal_config(args.cabal_config, constraints)
 update_pkgbuild(args.pkgbuild, sorted(sources + [
     "haskell-{pkgname}-$pkgver.tar.gz::"
