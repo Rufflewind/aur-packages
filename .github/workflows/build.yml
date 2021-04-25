@@ -1,0 +1,33 @@
+name: build
+on:
+  pull_request:
+  push:
+  schedule:
+    - cron: 35 8 3 * *
+  workflow_dispatch:
+jobs:
+  intro:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate_matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v2
+      - id: generate_matrix
+        run: |
+          jq -Rnr '"::set-output name=matrix::" + ({"include": [{"pkg": inputs}]} | tostring)' packages.conf
+  build:
+    needs: intro
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.intro.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: git clone https://aur.archlinux.org/${{ matrix.pkg }}.git pkg
+        # workaround for https://bugs.archlinux.org/task/65042
+      - if: ${{ contains(fromJson('["ghc-pristine", "stack-bin"]'), matrix.pkg) }}
+        run: echo NAMCAP_DISABLE=true >> $GITHUB_ENV
+      - uses: Rufflewind/pkgbuild-action@master
+        with:
+          pkgdir: pkg
+          aurDeps: true
+          namcapDisable: $${ env.NAMCAP_DISABLE }}
