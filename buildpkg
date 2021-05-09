@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+# "Stages" the changes to GitHub under a new "pkg-${pkgname}" branch and runs
+# the test_* steps from .github/actions/build.yml.
+import os, re, subprocess, tempfile
+import yaml
+
+def cmd(cmd):
+    return subprocess.run(
+        cmd,
+        check=True,
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+    ).stdout.rstrip()
+
+workflow_name = "build_single.yml"
+
+def workflow_template(steps):
+    return {
+        "name": os.path.splitext(workflow_name)[0],
+        "on": {
+            "push": None,
+        },
+        "jobs": {
+            "build": {
+                "runs-on": "ubuntu-latest",
+                "env": {
+                    "PKGDIR": ".",
+                },
+                "steps": [
+                    {
+                        "uses": "actions/checkout@v2",
+                    },
+                    *steps,
+                ],
+            },
+        },
+    }
+
+user_name = "aur-packages/buildpkg"
+workflows_dir = ".github/workflows"
+pkg_repo = "."
+root_repo = os.path.join(pkg_repo, "../..")
+
+with open(os.path.join(pkg_repo, ".SRCINFO")) as f:
+    pkgname, = re.search("pkgname = (.*)", f.read()).groups()
+original_desc = cmd(["git", "-C", pkg_repo, "show", "-q", "--pretty=%h %s"])
+origin_url = cmd(["git", "-C", root_repo, "remote", "get-url", "origin"])
+
+# It would have been better to refactor build.yml using composite GitHub
+# Actions, but nested actions are not supported as of 2021-05.
+with open(os.path.join(root_repo, workflows_dir, "build.yml")) as f:
+    root_workflow_def = yaml.load(f)
+steps = [step for step in root_workflow_def["jobs"]["build"]["steps"]
+         if step.get("name", "").startswith("test_")]
+workflow_def = workflow_template(steps)
+
+with tempfile.TemporaryDirectory() as new_repo:
+    cmd(["git", "clone", "-q", pkg_repo, new_repo])
+    new_workflows_dir = os.path.join(new_repo, workflows_dir)
+    os.makedirs(new_workflows_dir, exist_ok=True)
+    with open(os.path.join(new_workflows_dir, workflow_name), "w") as f:
+        yaml.dump(workflow_def, f, default_flow_style=False)
+    cmd(["git", "-C", new_repo, "config", "user.name", user_name])
+    cmd(["git", "-C", new_repo, "config", "user.email", ""])
+    cmd(["git", "-C", new_repo, "add", "-A"])
+    cmd(["git", "-C", new_repo, "commit", "-m", f"{pkgname}: {original_desc}"])
+    cmd(["git", "-C", new_repo, "remote", "set-url", "origin", origin_url])
+    cmd(["git", "-C", new_repo, "push", "-f", "origin", f"HEAD:pkg-{pkgname}"])

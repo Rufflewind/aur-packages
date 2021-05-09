@@ -18,6 +18,12 @@ To make a quick commit within a package, do:
 git commit -m `../../getpkgver`
 ~~~
 
+### Staging changes for testing on GitHub Actions
+
+~~~sh
+../../buildpkg
+~~~
+
 ### Cloning new or existing packages
 
 ~~~sh
