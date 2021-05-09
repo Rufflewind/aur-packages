@@ -1,7 +1,13 @@
 #!/bin/sh
 set -eu
+
 dir=`dirname "$0"`
 cd "${dir}"
+
+which git-config-user-aur || {
+    echo >&2 "error: missing git-config-user-aur"
+    exit 1
+}
 
 git clone "aur@aur.archlinux.org:$1" "pkg/$1"
 printf "%s\n" "$1" >>packages.conf
