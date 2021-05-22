@@ -33,7 +33,7 @@ jobs:
               echo NAMCAP_DISABLE=true >> $GITHUB_ENV
           fi
       - name: test_run
-        uses: Rufflewind/pkgbuild-action@master
+        uses: edlanglois/pkgbuild-action@v1.1.6
         with:
           pkgdir: ${{ env.PKGDIR }}
           aurDeps: true
