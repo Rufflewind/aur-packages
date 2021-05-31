@@ -11,8 +11,11 @@ optdepends=("git: git support" "mercurial: mercurial support")
 makedepends=(cabal-install libffi ncurses5-compat-libs)
 source=()
 sha512sums=()
+sha512sums_i686=()
+sha512sums_x86_64=()
 noextract=("${source[@]%%::*}")
-source=("${source[@]}" "https://downloads.haskell.org/~ghc/{{ ghc_version }}/ghc-{{ ghc_version }}-$CARCH-deb9-linux.tar.xz")
+source_i686=("https://downloads.haskell.org/~ghc/{{ ghc_version }}/ghc-{{ ghc_version }}-i386-deb9-linux.tar.xz")
+source_x86_64=("https://downloads.haskell.org/~ghc/{{ ghc_version }}/ghc-{{ ghc_version }}-x86_64-deb9-linux.tar.xz")
 
 prepare() {
     unset CABAL_SANDBOX_CONFIG CABAL_SANDBOX_PACKAGE_PATH GHC_PACKAGE_PATH

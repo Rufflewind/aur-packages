@@ -3,6 +3,7 @@ GITIT_GHC_VERSION=8.8.4
 all: dist/gitit/PKGBUILD
 
 ghc-%-x86_64-deb9-linux.tar.xz:
+	mkdir -p $(@D)
 	curl -LSfs -o $@ https://downloads.haskell.org/~ghc/$(*F)/$(@F)
 
 ghc-%-src.ok: ghc-%-x86_64-deb9-linux.tar.xz
