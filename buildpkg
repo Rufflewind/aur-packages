@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # "Stages" the changes to GitHub under a new "pkg-${pkgname}" branch and runs
 # the test_* steps from .github/actions/build.yml.
-import os, re, subprocess, tempfile
+import os, re, subprocess, sys, tempfile
 import yaml
 
 def cmd(cmd):
@@ -53,6 +53,13 @@ with open(os.path.join(root_repo, workflows_dir, "build.yml")) as f:
 steps = [step for step in root_workflow_def["jobs"]["build"]["steps"]
          if step.get("name", "").startswith("test_")]
 workflow_def = workflow_template(steps)
+
+# Prevent common mistake of forgetting to commit.
+status = cmd(["git", "status", "--porcelain", pkg_repo])
+if status:
+    sys.stderr.write(f"[\x1b[31;1merror\x1b[0m] tree is dirty:\n{status}\n")
+    sys.stderr.flush()
+    sys.exit(1)
 
 with tempfile.TemporaryDirectory() as new_repo:
     cmd(["git", "clone", "-q", pkg_repo, new_repo])
