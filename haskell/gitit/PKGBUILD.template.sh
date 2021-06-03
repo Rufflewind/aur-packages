@@ -8,25 +8,16 @@ url=https://hackage.haskell.org/package/gitit
 license=(GPL)
 depends=(gmp mailcap numactl zlib)
 optdepends=("git: git support" "mercurial: mercurial support")
-makedepends=(cabal-install libffi ncurses5-compat-libs)
+makedepends=(cabal-install ghc{{ ghc_version }})
 source=()
-sha512sums=()
-sha512sums_i686=()
-sha512sums_x86_64=()
+sha512sums=('SKIP')
 noextract=("${source[@]%%::*}")
-source_i686=("https://downloads.haskell.org/~ghc/{{ ghc_version }}/ghc-{{ ghc_version }}-i386-deb9-linux.tar.xz")
-source_x86_64=("https://downloads.haskell.org/~ghc/{{ ghc_version }}/ghc-{{ ghc_version }}-x86_64-deb9-linux.tar.xz")
 
 prepare() {
     unset CABAL_SANDBOX_CONFIG CABAL_SANDBOX_PACKAGE_PATH GHC_PACKAGE_PATH
-    (
-        cd ghc-{{ ghc_version }}
-        ./configure --prefix="$srcdir/.local"
-        make install
-    )
     mkdir -p .cabal
     cat >.cabal/config <<EOF
-with-compiler: $srcdir/.local/bin/ghc
+with-compiler: ghc-{{ ghc_version }}
 jobs: \$ncpus
 EOF
     cabal --config=.cabal/config v1-sandbox init
