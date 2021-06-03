@@ -53,6 +53,6 @@ package() {
     mkdir -p "$pkgdir/usr/share"
     cp -PR .cabal-sandbox/share/gitit "$pkgdir/usr/share/"
     rm -fr "$pkgdir/usr/share/gitit/man"
-    install -Dm755 .cabal-sandbox/bin/gitit "$pkgdir/usr/bin/gitit"
-    install -Dm644 "gitit-$pkgver/LICENSE" "$pkgdir/usr/share/licenses/gitit/LICENSE"
+    install -Dm755 -t "$pkgdir/usr/bin" .cabal-sandbox/bin/{gitit,expireGititCache}
+    install -Dm644 -t "$pkgdir/usr/share/licenses/gitit" "gitit-$pkgver/"*LICENSE
 }
