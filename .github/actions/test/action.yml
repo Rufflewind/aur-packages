@@ -1,0 +1,14 @@
+inputs:
+  build-dir:
+    required: true
+  out-dir:
+    required: true
+outputs:
+  pkgbase:
+    value: ${{ steps.main.outputs.pkgbase }}
+runs:
+  using: "composite"
+  steps:
+    - id: main
+      run: $GITHUB_ACTION_PATH/script.sh main ${{ inputs.build-dir }} ${{ inputs.out-dir }}
+      shell: bash

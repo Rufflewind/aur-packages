@@ -9,10 +9,10 @@ jobs:
   intro:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.generate_matrix.outputs.matrix }}
+      matrix: ${{ steps.generate-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v2
-      - id: generate_matrix
+      - id: generate-matrix
         run: |
           jq -Rnr '"::set-output name=matrix::" + ({"include": [{"pkg": inputs}]} | tostring)' packages.conf
   build:
@@ -21,24 +21,14 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.intro.outputs.matrix) }}
     runs-on: ubuntu-latest
-    env:
-      PKGDIR: pkg
     steps:
-      - run: git clone https://aur.archlinux.org/${{ matrix.pkg }}.git pkg
-      - # Prevent pkgbuild-action from checking .SRCINFO in continuous builds.
-        # The format of .SRCINFO can evolve in harmless ways due to upstream
-        # changes. (One-off builds via ./buildpkg will still check .SRCINFO.)
-        run: rm pkg/.SRCINFO
-        # steps named "test_*" are used by ./buildpkg for staging tests
-      - name: test_prepare
-        # workaround for https://bugs.archlinux.org/task/65042
-        run: |
-          if grep '^pkgname = \(ghc-pristine|stack-bin\)$' "${PKGDIR}/.SRCINFO"; then
-              echo NAMCAP_DISABLE=true >> $GITHUB_ENV
-          fi
-      - name: test_run
-        uses: Rufflewind/pkgbuild-action@master
+      - uses: actions/checkout@v2
+      - run: git clone https://aur.archlinux.org/${{ matrix.pkg }}.git build
+      - uses: ./.github/actions/test
         with:
-          pkgdir: ${{ env.PKGDIR }}
-          aurDeps: true
-          namcapDisable: $${ env.NAMCAP_DISABLE }}
+          build-dir: build
+          out-dir: out
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.pkg }}
+          path: out/mainpkgs

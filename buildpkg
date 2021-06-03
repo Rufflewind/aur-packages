@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # "Stages" the changes to GitHub under a new "pkg-${pkgname}" branch and runs
-# the test_* steps from .github/actions/build.yml.
-import os, re, subprocess, sys, tempfile
-import yaml
+# ./build_single.yml.
+import os, re, shutil, subprocess, sys, tempfile
 
 def cmd(cmd):
     return subprocess.run(
@@ -13,29 +12,6 @@ def cmd(cmd):
     ).stdout.rstrip()
 
 workflow_name = "build_single.yml"
-
-def workflow_template(steps):
-    return {
-        "name": os.path.splitext(workflow_name)[0],
-        "on": {
-            "push": None,
-        },
-        "jobs": {
-            "build": {
-                "runs-on": "ubuntu-latest",
-                "env": {
-                    "PKGDIR": ".",
-                },
-                "steps": [
-                    {
-                        "uses": "actions/checkout@v2",
-                    },
-                    *steps,
-                ],
-            },
-        },
-    }
-
 user_name = "aur-packages/buildpkg"
 workflows_dir = ".github/workflows"
 pkg_repo = "."
@@ -46,27 +22,22 @@ with open(os.path.join(pkg_repo, ".SRCINFO")) as f:
 original_desc = cmd(["git", "-C", pkg_repo, "show", "-q", "--pretty=%h %s"])
 origin_url = cmd(["git", "-C", root_repo, "remote", "get-url", "origin"])
 
-# It would have been better to refactor build.yml using composite GitHub
-# Actions, but nested actions are not supported as of 2021-05.
-with open(os.path.join(root_repo, workflows_dir, "build.yml")) as f:
-    root_workflow_def = yaml.load(f)
-steps = [step for step in root_workflow_def["jobs"]["build"]["steps"]
-         if step.get("name", "").startswith("test_")]
-workflow_def = workflow_template(steps)
-
 # Prevent common mistake of forgetting to commit.
-status = cmd(["git", "status", "--porcelain", pkg_repo])
-if status:
-    sys.stderr.write(f"[\x1b[31;1merror\x1b[0m] tree is dirty:\n{status}\n")
-    sys.stderr.flush()
-    sys.exit(1)
+for repo in [pkg_repo, root_repo]:
+    status = cmd(["git", "-C", repo, "status", "--porcelain"])
+    if status:
+        sys.stderr.write(f"[\x1b[31;1merror\x1b[0m] tree at {repo} is dirty:\n{status}\n")
+        sys.stderr.flush()
+        sys.exit(1)
 
 with tempfile.TemporaryDirectory() as new_repo:
     cmd(["git", "clone", "-q", pkg_repo, new_repo])
     new_workflows_dir = os.path.join(new_repo, workflows_dir)
     os.makedirs(new_workflows_dir, exist_ok=True)
-    with open(os.path.join(new_workflows_dir, workflow_name), "w") as f:
-        yaml.dump(workflow_def, f, default_flow_style=False)
+    shutil.copy2(
+        os.path.join(root_repo, workflow_name),
+        os.path.join(new_workflows_dir, workflow_name),
+    )
     cmd(["git", "-C", new_repo, "config", "user.name", user_name])
     cmd(["git", "-C", new_repo, "config", "user.email", ""])
     cmd(["git", "-C", new_repo, "add", "-A"])
