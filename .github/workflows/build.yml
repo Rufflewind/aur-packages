@@ -25,6 +25,10 @@ jobs:
       PKGDIR: pkg
     steps:
       - run: git clone https://aur.archlinux.org/${{ matrix.pkg }}.git pkg
+      - # Prevent pkgbuild-action from checking .SRCINFO in continuous builds.
+        # The format of .SRCINFO can evolve in harmless ways due to upstream
+        # changes. (One-off builds via ./buildpkg will still check .SRCINFO.)
+        run: rm pkg/.SRCINFO
         # steps named "test_*" are used by ./buildpkg for staging tests
       - name: test_prepare
         # workaround for https://bugs.archlinux.org/task/65042
@@ -33,7 +37,7 @@ jobs:
               echo NAMCAP_DISABLE=true >> $GITHUB_ENV
           fi
       - name: test_run
-        uses: edlanglois/pkgbuild-action@v1.1.6
+        uses: Rufflewind/pkgbuild-action@master
         with:
           pkgdir: ${{ env.PKGDIR }}
           aurDeps: true
