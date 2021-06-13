@@ -1,6 +1,6 @@
 # AUR packages
 
-To avoid forgetting to update `.SRCINFO`, be sure to add the pre-commit hooks,
+To avoid forgetting to update `.SRCINFO`, be sure to add the pre-push hooks,
 as shown in the commands below.
 
 ## Initial clone of `aur-packages`
@@ -30,8 +30,8 @@ git commit -m `../../getpkgver`
 ./clone-aur ⟨pkgname⟩
 ~~~
 
-This will automatically add the package to `packages.conf` and configure the
-pre-commit hooks.
+This will automatically add the package to `packages.conf` and set up the
+pre-push hooks.
 
 ### Updating dependency trees of Cabal packages
 

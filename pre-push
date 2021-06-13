@@ -1,0 +1,31 @@
+#!/bin/bash
+set -eu
+
+# Reads the values of a srcinfo attribute, returning every value as a line.
+#
+#     read_srcinfo <attribute_name_regex> <srcinfo_file>
+#
+read_srcinfo() {
+    sed -n -E "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$2"
+}
+
+pkgbase=$(read_srcinfo pkgbase .SRCINFO)
+response=$(curl -LSfs -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/Rufflewind/aur-packages/actions/runs?branch=pkg-$pkgbase&per_page=100")
+cut -d " " -f 2 | while read -r commit; do
+    prefix="$pkgbase: ${commit::7}"
+    jq -r --arg prefix "$prefix" <<<"$response" '
+        [
+            .workflow_runs[] |
+            select(.head_commit.message | startswith($prefix))
+        ][0] |
+        if . == null then
+            error("no run found for \($prefix)")
+        elif .status != "completed" then
+            error("run is not yet complete [\(.head_commit.message), \(.status)]")
+        elif .conclusion != "success" then
+            error("run did not succeed [\(.head_commit.message), \(.conclusion)]")
+        else
+            ""
+        end
+    '
+done

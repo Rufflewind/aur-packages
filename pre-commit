@@ -1,5 +1,0 @@
-#!/bin/sh
-set -e
-namcap PKGBUILD || echo >&2 'WARNING: namcap failed.'
-makepkg --printsrcinfo > .SRCINFO
-git add .SRCINFO

@@ -14,5 +14,5 @@ printf "%s\n" "$1" >>packages.conf
 sort packages.conf | uniq >packages.conf.tmp
 mv packages.conf.tmp packages.conf
 cd "pkg/$1"
-ln -rs ../../pre-commit "`git rev-parse --git-dir`/hooks/pre-commit"
+ln -rs ../../pre-push "`git rev-parse --git-dir`/hooks/pre-push"
 git-config-user-aur >/dev/null
