@@ -1,6 +1,6 @@
 GITIT_GHC_VERSION=8.8
 
-all: dist/gitit/PKGBUILD
+all: dist/gitit/PKGBUILD dist/gitit/.SRCINFO
 
 dist/cabal-update.ok:
 	mkdir -p $(@D)
@@ -18,4 +18,8 @@ dist/gitit/PKGBUILD: dist/gitit-build/cabal.project.freeze gitit/PKGBUILD.templa
 	../upd-hs-src --boot-pkg-db="$$(ghc-$(GITIT_GHC_VERSION) --print-global-package-db)" --metadata-cache=dist/gitit-build/metadata-cache gitit dist/gitit-build/cabal.project.freeze $@.tmp
 	grep "(" $@.tmp
 	updpkgsums $@.tmp
+	mv $@.tmp $@
+
+dist/gitit/.SRCINFO: dist/gitit/PKGBUILD
+	(cd $(@D) && makepkg --printsrcinfo) > $@.tmp
 	mv $@.tmp $@
