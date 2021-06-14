@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# "Stages" the changes to GitHub under a new "pkg-${pkgname}" branch and runs
+# "Stages" the changes to GitHub under a new "pkg-${pkgbase}" branch and runs
 # ./build_single.yml.
 import os, re, shutil, subprocess, sys, tempfile
 
@@ -18,7 +18,7 @@ pkg_repo = "."
 root_repo = os.path.join(pkg_repo, "../..")
 
 with open(os.path.join(pkg_repo, ".SRCINFO")) as f:
-    pkgname, = re.search("pkgname = (.*)", f.read()).groups()
+    pkgbase, = re.search("pkgbase = (.*)", f.read()).groups()
 original_desc = cmd(["git", "-C", pkg_repo, "show", "-q", "--pretty=%h %s"])
 origin_url = cmd(["git", "-C", root_repo, "remote", "get-url", "origin"])
 
@@ -41,6 +41,6 @@ with tempfile.TemporaryDirectory() as new_repo:
     cmd(["git", "-C", new_repo, "config", "user.name", user_name])
     cmd(["git", "-C", new_repo, "config", "user.email", ""])
     cmd(["git", "-C", new_repo, "add", "-A"])
-    cmd(["git", "-C", new_repo, "commit", "-m", f"{pkgname}: {original_desc}"])
+    cmd(["git", "-C", new_repo, "commit", "-m", f"{pkgbase}: {original_desc}"])
     cmd(["git", "-C", new_repo, "remote", "set-url", "origin", origin_url])
-    cmd(["git", "-C", new_repo, "push", "-f", "origin", f"HEAD:pkg-{pkgname}"])
+    cmd(["git", "-C", new_repo, "push", "-f", "origin", f"HEAD:pkg-{pkgbase}"])
