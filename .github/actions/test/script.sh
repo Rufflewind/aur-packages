@@ -53,6 +53,9 @@ EOF
     install_yay yay
     echo ::endgroup::
 
+    # workaround for https://bugs.archlinux.org/task/71078
+    gpgflags="--keyserver hkps://keyserver.ubuntu.com"
+
     # install the dependencies, followed by the package
     cp -RTp "/mnt/workspace/$build_dir" build
     (
@@ -60,7 +63,7 @@ EOF
         makepkg --printsrcinfo >.SRCINFO
 
         echo ::group::"Install dependencies"
-        read_srcinfo "(check|make)?depends" .SRCINFO | xargs yay -S --needed --noconfirm
+        read_srcinfo "(check|make)?depends" .SRCINFO | xargs yay -S --needed --noconfirm --gpgflags="${gpgflags}"
         echo ::endgroup::
 
         echo ::group::"Build and install"
