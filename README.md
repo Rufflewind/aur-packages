@@ -39,18 +39,27 @@ Install `$pkg` manually with the updated deps:
 
 ~~~sh
 set -eux
-pkg=my_package
+
+pkg=my-package
+ghc_ver=8.10
+ghc_ver_full=8.10.4
+
+yay -S --needed cabal-install "ghc$ghc_ver"
+cabal update
+boot_pkg_db=$(pacman -Ql ghc8.10 | grep /usr/lib/ghc | head -n 1 | cut -d " " -f 2)
+echo --boot-pkg-db="$boot_pkg_db"
+
 tmpdir=`mktemp -d`
 (
     cd "$tmpdir"
-    cabal update
-    cabal sandbox init
-    echo 'with-compiler: /usr/share/ghc-pristine/bin/ghc' | tee cabal-config
-    cabal --config=cabal-config install $pkg
-    cabal exec -- sh -c 'cd gitit-* && cabal --config=../cabal-config freeze'
+    cabal get gitit
+    echo "packages: */*.cabal
+with-compiler: ghc-$ghc_ver" >cabal.project
+    cabal freeze
 )
+
 # update the PKGBUILD
-./upd-hs-src "$pkg" "$tmpdir/$pkg"-*/cabal.config "pkg/$pkg/PKGBUILD"
+./upd-hs-src --boot-pkg-db=/usr/lib/ghc-$ghc_ver_full/package.conf.d "$pkg" "$tmpdir/cabal.project.freeze" "pkg/$pkg/PKGBUILD"
 ~~~
 
 Finally, bump the `pkgver` and then run `updpkgsums`.

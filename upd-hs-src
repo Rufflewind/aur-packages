@@ -56,12 +56,15 @@ def read_cabal_config(cabal_config, boot_pkg_name_vers, metadata_cache):
         if not match:
             continue
         ver, = match.groups()
-        if name in NON_INSTALLABLE or boot_pkg_name_vers.get(name) == ver:
+        boot_ver = boot_pkg_name_vers.get(name)
+        if name in NON_INSTALLABLE or boot_ver == ver:
             constraints.append(name + " installed")
             continue
-        if name in boot_pkg_name_vers:
-            sys.stderr.write(f"Note: {name}-{ver} is a boot package "
-                             f"but of a different version.\n")
+        if boot_ver is not None:
+            sys.stderr.write(
+                f"Warning: {name}-{ver} is a boot package "
+                f"but of a different version (system: {boot_ver})."
+                f"This will probably cause problems later.\n")
         constraints.append(name + " ==" + ver)
         pkgs[name] = ver    # cabal freeze sometimes creates duplicate entries
     for name, ver in pkgs.items():
@@ -107,8 +110,7 @@ def list_packages(package_db):
             yield m.groups()
 
 p = argparse.ArgumentParser()
-p.add_argument("--boot-pkg-db",
-               default="/usr/share/ghc-pristine/lib/package.conf.d")
+p.add_argument("--boot-pkg-db", default="/usr/lib/ghc/package.conf.d")
 p.add_argument("--metadata-cache", default="metadata-revision.cache~")
 p.add_argument("pkgname", default="cabal.config")
 p.add_argument("cabal_config", default="cabal.config")
