@@ -7,7 +7,11 @@ sed -i "
     s/^\(pkgver=\).*/\1${version}/;
     s/^\(sha1sums=('\).*\(')\)/\1${linux64_sha}\2/;
 " pkg/purescript-bin/PKGBUILD
-git -C pkg/purescript-bin add PKGBUILD
+(
+    cd pkg/purescript-bin &&
+    makepkg --printsrcinfo >.SRCINFO
+)
+git -C pkg/purescript-bin add PKGBUILD .SRCINFO
 git -C pkg/purescript-bin commit -m "${version}"
 git -C pkg/purescript-bin --no-pager show -p --stat HEAD
 (
