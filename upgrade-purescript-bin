@@ -16,6 +16,7 @@ git -C pkg/purescript-bin commit -m "${version}"
 git -C pkg/purescript-bin --no-pager show -p --stat HEAD
 (
     cd pkg/purescript-bin &&
+    ../../buildpkg &&
     makepkg -fi &&
     got_version=`/usr/bin/purs --version`
     [ "${version}" = "${got_version}" ] || {
@@ -28,7 +29,7 @@ cat <<EOF
 
 ========================================
 
-All's good.  When ready, run:
+All's good.  After the remote buildpkg finishes, run:
 
     git -C pkg/purescript-bin push
 

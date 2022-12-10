@@ -19,11 +19,11 @@ cut -d " " -f 2 | while read -r commit; do
             select(.head_commit.message | startswith($prefix))
         ][0] |
         if . == null then
-            error("no run found for \($prefix)")
+            error("no buildpkg run found for \($prefix)")
         elif .status != "completed" then
-            error("run is not yet complete [\(.head_commit.message), \(.status)]")
+            error("buildpkg run is not yet complete [\(.head_commit.message), \(.status)]")
         elif .conclusion != "success" then
-            error("run did not succeed [\(.head_commit.message), \(.conclusion)]")
+            error("buildpkg run did not succeed [\(.head_commit.message), \(.conclusion)]")
         else
             ""
         end
