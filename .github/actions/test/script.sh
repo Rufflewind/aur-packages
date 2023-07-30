@@ -189,7 +189,7 @@ main() (
 
     # run all tests in .github/actions/test/pkg/<pkgbase>/*.sh
     pkgbase=$(read_srcinfo pkgbase "$out_dir/.SRCINFO")
-    echo ::set-output name=pkgbase::"$pkgbase"
+    echo pkgbase="$pkgbase" >>"$GITHUB_OUTPUT"
     cd "$script_dir"
     for test_script in "pkg/$pkgbase/"*.sh; do
         docker_run "$workspace" archlinux run_test "$out_dir" "$test_script"

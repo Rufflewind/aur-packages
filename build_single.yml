@@ -5,7 +5,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: build
       - id: test
@@ -13,7 +13,7 @@ jobs:
         with:
           build-dir: build
           out-dir: out
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.test.outputs.pkgbase }}
           path: out/mainpkgs

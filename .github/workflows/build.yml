@@ -11,10 +11,10 @@ jobs:
     outputs:
       matrix: ${{ steps.generate-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - id: generate-matrix
         run: |
-          jq -Rnr '"::set-output name=matrix::" + ({"include": [{"pkg": inputs}]} | tostring)' packages.conf
+          jq -Rnr '"matrix=" + ({"include": [{"pkg": inputs}]} | tostring)' packages.conf >>"$GITHUB_OUTPUT"
   build:
     needs: intro
     strategy:
@@ -22,13 +22,13 @@ jobs:
       matrix: ${{ fromJson(needs.intro.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: git clone https://aur.archlinux.org/${{ matrix.pkg }}.git build
       - uses: ./.github/actions/test
         with:
           build-dir: build
           out-dir: out
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.pkg }}
           path: out/mainpkgs
