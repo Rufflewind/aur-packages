@@ -35,31 +35,13 @@ pre-push hooks.
 
 ### Updating dependency trees of Cabal packages
 
-Install `$pkg` manually with the updated deps:
+Hint: You can use arch-chroot.sh in Rufflewind/config to do this.
 
 ~~~sh
-set -eux
-
-pkg=my-package
-ghc_ver=8.10
-ghc_ver_full=8.10.4
-
-yay -S --needed cabal-install "ghc$ghc_ver"
-cabal update
-boot_pkg_db=$(pacman -Ql ghc8.10 | grep /usr/lib/ghc | head -n 1 | cut -d " " -f 2)
-echo --boot-pkg-db="$boot_pkg_db"
-
-tmpdir=`mktemp -d`
-(
-    cd "$tmpdir"
-    cabal get gitit
-    echo "packages: */*.cabal
-with-compiler: ghc-$ghc_ver" >cabal.project
-    cabal freeze
-)
-
-# update the PKGBUILD
-./upd-hs-src --boot-pkg-db=/usr/lib/ghc-$ghc_ver_full/package.conf.d "$pkg" "$tmpdir/cabal.project.freeze" "pkg/$pkg/PKGBUILD"
+yay -S --needed cabal-install
+yay -S --needed --mflags=--nocheck "ghc9.0"
+make -C haskell
+cp haskell/dist/gitit/{PKGBUILD,.SRCINFO} pkg/gitit
 ~~~
 
 Finally, bump the `pkgver` and then run `updpkgsums`.
