@@ -56,25 +56,27 @@ def read_cabal_config(
     pkgs = []
     for line in lines:
         match = re.search(
-            r" (?:any\.)?([^\s=:]+).* ==([\d.]+),?$",
+            r" (?:any\.)?([^\s=:]+) (==[\d.]+(?:\s*\|\|\s*==[\d.]+)*),?$",
             line,
         )
         if not match:
             continue
-        name, ver = match.groups()
+        name, vers_str = match.groups()
+        vers = tuple(re.findall(r"==([\d.]+)", vers_str))
         boot_ver = boot_pkg_name_vers.get(name)
-        if name in NON_INSTALLABLE or boot_ver == ver:
+        if name in NON_INSTALLABLE or (boot_ver,) == vers:
             constraints.append(name + " installed")
             continue
         if boot_ver is not None:
             sys.stderr.write(
-                f"Warning: {name}-{ver} is a boot package "
+                f"Warning: {name} {vers} is a boot package "
                 f"but of a different version (system: {boot_ver}). "
-                f"This will probably cause problems later.\n")
-        constraints.append(name + " ==" + ver)
+                f"This might cause problems later (?)\n")
+        constraints.append(name + " ==" + vers[0])  # FIXME
         if name == pkgname:
             continue
-        pkgs.append((name, ver))
+        for ver in vers:
+            pkgs.append((name, ver))
     for name, ver in pkgs:
         if re.match("rts$|z-.*-z-", name):
             continue
@@ -140,7 +142,7 @@ sources, constraints = read_cabal_config(
     args.metadata_cache,
     args.pkgname,
 )
-update_cabal_config(args.cabal_config, constraints)
+#update_cabal_config(args.cabal_config, constraints)
 sources = sorted(sources + [
     "haskell-{pkgname}-$pkgver.tar.gz::"
     "https://hackage.haskell.org/package/"
