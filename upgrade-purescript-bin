@@ -2,14 +2,17 @@
 set -eu
 version=`curl -ILSfs -o /dev/null -w "%{url_effective}" https://github.com/purescript/purescript/releases/latest | sed 's|.*/v\(.*\)|\1|'`
 echo "Upgrading to ${version}..."
+linux64_arm64_sha=`curl -LSfs "https://github.com/purescript/purescript/releases/download/v${version}/linux-arm64.sha" | cut -d " " -f 1`
 linux64_sha=`curl -LSfs "https://github.com/purescript/purescript/releases/download/v${version}/linux64.sha" | cut -d " " -f 1`
 sed -i "
     s/^\(pkgver=\).*/\1${version}/;
-    s/^\(sha1sums=('\).*\(')\)/\1${linux64_sha}\2/;
+    s/^\(sha1sums_aarch64=\)([^)]*)/\1('${linux64_arm64_sha}')/;
+    s/^\(sha1sums_x86_64=\)([^)]*)/\1('${linux64_sha}')/;
 " pkg/purescript-bin/PKGBUILD
 (
     cd pkg/purescript-bin &&
-    makepkg --printsrcinfo >.SRCINFO
+    makepkg --printsrcinfo >.SRCINFO.tmp &&
+    mv .SRCINFO.tmp .SRCINFO
 )
 git -C pkg/purescript-bin add PKGBUILD .SRCINFO
 git -C pkg/purescript-bin commit -m "${version}"

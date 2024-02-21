@@ -20,4 +20,4 @@ jobs:
       - # Only check .SRCINFO in one-off builds (./buildpkg), not continuous
         # ones because the format of .SRCINFO can evolve in harmless ways due to
         # upstream changes.
-        run: diff --color=always -u out/.SRCINFO build/.SRCINFO
+        run: diff --color=always -u build/.SRCINFO out/.SRCINFO
