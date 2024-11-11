@@ -1,0 +1,23 @@
+name: build_single
+on:
+  push:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: build
+      - id: test
+        uses: Rufflewind/aur-packages/.github/actions/test@master
+        with:
+          build-dir: build
+          out-dir: out
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ steps.test.outputs.pkgbase }}
+          path: out/mainpkgs
+      - # Only check .SRCINFO in one-off builds (./buildpkg), not continuous
+        # ones because the format of .SRCINFO can evolve in harmless ways due to
+        # upstream changes.
+        run: diff --color=always -u build/.SRCINFO out/.SRCINFO
